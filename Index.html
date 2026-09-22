@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coordinate — Tournament Setup</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --ink: #1a1f2b; --ink-soft: #566; --line: #dfe3ea; --bg: #f7f8fa;
+    --card: #ffffff; --accent: #2c4a5e; --accent-soft: #eef3f5;
+    --warn: #9a6b12; --warn-bg: #fdf3e0; --err: #a3372f; --err-bg: #fdeceb;
+    --ok: #2d6a4f; --ok-bg: #e9f5ef; --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.5;
+    padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  header { padding: 28px 24px 20px; max-width: 880px; margin: 0 auto; }
+  header h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  header .sub { color: var(--ink-soft); font-size: 14px; }
+  main { max-width: 880px; margin: 0 auto; padding: 0 24px 80px; display: flex; flex-direction: column; gap: 18px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 24px; }
+  .card h2 { font-size: 15px; margin: 0 0 14px; display: flex; align-items: center; gap: 8px; }
+  .step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 50%; background: var(--accent);
+    color: #fff; font-size: 12px; font-weight: 600; flex-shrink: 0;
+  }
+  .card.done .step-num { background: var(--ok); }
+  .card.optional h2::after {
+    content: 'optional'; font-size: 10px; font-weight: 600; text-transform: uppercase;
+    color: var(--ink-soft); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 10px; padding: 2px 8px; margin-left: auto;
+  }
+  .card p.hint { color: var(--ink-soft); font-size: 13px; margin: 0 0 14px; }
+
+  select.sport-select {
+    width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px;
+    font-size: 14px; background: #fff; color: var(--ink); font-family: inherit;
+  }
+  .sport-info { margin-top: 14px; display: none; }
+  .sport-info.show { display: block; }
+  .sport-info .label { font-size: 12px; color: var(--ink-soft); margin-bottom: 8px; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    font-size: 12px; padding: 6px 12px; border-radius: 20px; background: var(--accent-soft);
+    color: var(--accent); border: 1px solid transparent;
+  }
+  .chip.dev { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); }
+
+  .dropzone {
+    border: 2px dashed var(--line); border-radius: var(--radius); padding: 24px;
+    text-align: center; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .dropzone:hover, .dropzone.drag { border-color: var(--accent); background: var(--accent-soft); }
+  .dropzone input { display: none; }
+  .dropzone .label { font-size: 14px; font-weight: 500; }
+  .dropzone .meta { font-size: 12px; color: var(--ink-soft); margin-top: 4px; }
+  .file-summary {
+    margin-top: 12px; padding: 10px 14px; background: var(--ok-bg); border-radius: 8px;
+    font-size: 13px; color: var(--ok); display: none;
+  }
+  .file-summary.show { display: block; }
+
+  .segmented { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .segmented button {
+    flex: 1; padding: 11px 10px; border: none; background: var(--card); cursor: pointer;
+    font-size: 13px; font-family: inherit; color: var(--ink); border-right: 1px solid var(--line);
+  }
+  .segmented button:last-child { border-right: none; }
+  .segmented button.active { background: var(--accent); color: #fff; font-weight: 500; }
+  .policy-desc { font-size: 12px; color: var(--ink-soft); margin-top: 8px; min-height: 32px; }
+  .policy-recommend { font-size: 12px; color: var(--accent); margin-top: 4px; }
+  .followup { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); display: none; }
+  .followup.show { display: block; }
+
+  .num-row { display: flex; align-items: center; gap: 10px; }
+  .num-row input[type=number] {
+    width: 70px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; font-size: 14px;
+  }
+  .num-row .note { font-size: 12px; color: var(--ink-soft); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 10px; color: var(--ink-soft); font-weight: 500; border-bottom: 1px solid var(--line); }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  select.template-select, select.field-select {
+    padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; background: #fff;
+  }
+  .confidence { font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+  .confidence.high { background: var(--ok-bg); color: var(--ok); }
+  .confidence.low { background: var(--warn-bg); color: var(--warn); }
+  .table-scroll { overflow-x: auto; }
+
+  .pair-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .pair-row .arrow { color: var(--ink-soft); font-size: 13px; }
+  .pair-row select { flex: 1; }
+  button.add-pair, button.remove-pair {
+    border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 7px 12px;
+    font-size: 12px; cursor: pointer; font-family: inherit; color: var(--ink);
+  }
+  button.remove-pair { color: var(--err); border-color: var(--err-bg); padding: 5px 9px; }
+  .blocked-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .blocked-chip {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: var(--err-bg); color: var(--err); padding: 7px 12px; border-radius: 8px; font-size: 13px;
+  }
+  .no-fields-yet { font-size: 13px; color: var(--ink-soft); font-style: italic; }
+
+  .summary-box { background: var(--accent-soft); border-radius: 8px; padding: 16px 18px; font-size: 13px; }
+  .summary-box code { font-size: 12px; }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .stat { background: #fff; border-radius: 6px; padding: 10px 12px; border: 1px solid var(--line); }
+  .stat .n { font-size: 20px; font-weight: 600; }
+  .stat .l { font-size: 11px; color: var(--ink-soft); }
+
+  button.primary {
+    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 13px 22px; font-size: 14px; font-weight: 500; cursor: pointer; width: 100%;
+  }
+  button.primary:disabled { background: #b6c1c8; cursor: not-allowed; }
+  button.primary:not(:disabled):hover { background: #23394a; }
+
+  .stub-note { font-size: 12px; background: var(--warn-bg); color: var(--warn); padding: 10px 14px; border-radius: 8px; margin-top: 12px; }
+  pre.json-out {
+    background: #12181f; color: #cfe0e8; padding: 14px 16px; border-radius: 8px;
+    font-size: 11.5px; overflow-x: auto; max-height: 280px; margin-top: 12px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #e8ecf0; --ink-soft: #94a3ab; --line: #2a333c; --bg: #10151b;
+      --card: #171e26; --accent: #6b9bb5; --accent-soft: #1c2a33;
+      --warn: #e0b458; --warn-bg: #332a14; --err: #e57a72; --err-bg: #331d1b;
+      --ok: #7fc9a3; --ok-bg: #14251d;
+    }
+    .segmented button, select.template-select, select.field-select, select.sport-select { color: var(--ink); background: var(--card); }
+  }
+  :root[data-theme="dark"] {
+    --ink: #e8ecf0; --ink-soft: #94a3ab; --line: #2a333c; --bg: #10151b;
+    --card: #171e26; --accent: #6b9bb5; --accent-soft: #1c2a33;
+    --warn: #e0b458; --warn-bg: #332a14; --err: #e57a72; --err-bg: #331d1b;
+    --ok: #7fc9a3; --ok-bg: #14251d;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Coordinate — Tournament Setup</h1>
+  <div class="sub">Sonma Thought Lab · configure a tournament before generating assignments</div>
+</header>
+
+<main>
+
+  <!-- STEP 1: SPORT -->
+  <section class="card" id="card-sport">
+    <h2><span class="step-num">1</span> Sport</h2>
+    <p class="hint">Sets the grade ladder and the officiating options available for this tournament.</p>
+    <select class="sport-select" id="sportSelect">
+      <option value="" disabled selected>Choose a sport…</option>
+    </select>
+    <div class="sport-info" id="sportInfo">
+      <div class="label">Officiating options for this sport (assigned per division in step 4):</div>
+      <div class="chip-row" id="sportChips"></div>
+    </div>
+  </section>
+
+  <!-- STEP 2: SCHEDULE UPLOAD -->
+  <section class="card" id="card-schedule">
+    <h2><span class="step-num">2</span> Schedule</h2>
+    <p class="hint">Upload the tournament master schedule (.xlsx or .csv) — dates, times, divisions, fields, locations.</p>
+    <label class="dropzone" id="dz-schedule">
+      <div class="label">Click to choose file, or drag one here</div>
+      <div class="meta">.xlsx or .csv</div>
+      <input type="file" id="file-schedule" accept=".xlsx,.xls,.csv">
+    </label>
+    <div class="file-summary" id="summary-schedule"></div>
+  </section>
+
+  <!-- STEP 3: ROSTER UPLOAD -->
+  <section class="card" id="card-roster">
+    <h2><span class="step-num">3</span> Officials roster</h2>
+    <p class="hint">A separate file — name and grade for every official available this tournament.</p>
+    <label class="dropzone" id="dz-roster">
+      <div class="label">Click to choose file, or drag one here</div>
+      <div class="meta">.xlsx or .csv</div>
+      <input type="file" id="file-roster" accept=".xlsx,.xls,.csv">
+    </label>
+    <div class="file-summary" id="summary-roster"></div>
+  </section>
+
+  <!-- STEP 4: DIVISION / CREW TEMPLATES -->
+  <section class="card" id="card-divisions" style="display:none">
+    <h2><span class="step-num">4</span> Crew size per division</h2>
+    <p class="hint">
+      Coordinate proposes a crew template per division from the schedule text and flags anything it
+      can't infer. Low-confidence rows need your confirmation.
+    </p>
+    <div class="table-scroll">
+      <table id="divisionTable">
+        <thead><tr><th>Division</th><th>Games</th><th>Crew template</th><th>Confidence</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- STEP 5: FACILITY LAYOUT -->
+  <section class="card optional" id="card-facility" style="display:none">
+    <h2><span class="step-num">5</span> Facility layout</h2>
+    <p class="hint">
+      By default Coordinate assumes any two fields at the same venue are close enough for one
+      official to work back-to-back. If your site has fields far enough apart that this isn't
+      realistic — a turf complex where field 1 and field 12 are a hike, diamonds where 1 and 30
+      need a car — mark those pairs here. This is a hard rule: it applies no matter what you pick
+      for the back-to-back policy below, because it isn't a preference, it's geography.
+    </p>
+    <div id="fieldPairBuilder"></div>
+    <div class="blocked-list" id="blockedList"></div>
+  </section>
+
+  <!-- STEP 6: BACK-TO-BACK POLICY -->
+  <section class="card" id="card-b2b">
+    <h2><span class="step-num">6</span> Back-to-back games</h2>
+    <p class="hint">Can one official work two consecutive games with no break between them?</p>
+    <div class="segmented" id="b2bSegment">
+      <button data-val="forbidden">Not allowed</button>
+      <button data-val="discouraged">Avoid, allow if forced</button>
+      <button data-val="allowed">Allowed</button>
+    </div>
+    <div class="policy-desc" id="b2bDesc"></div>
+    <div class="policy-recommend" id="b2bRecommend"></div>
+    <div class="followup" id="consecutiveFollowup">
+      <p class="hint" style="margin:0 0 8px">
+        Even when back-to-back is fully allowed, most tournaments still cap how many in a row —
+        a genuine rest eventually matters.
+      </p>
+      <div class="num-row">
+        <input type="number" id="maxConsecutive" value="3" min="1" max="10">
+        <span class="note">max consecutive games with no break (3 is typical, some go to 4)</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 7: MAX GAMES -->
+  <section class="card" id="card-maxgames">
+    <h2><span class="step-num">7</span> Maximum games per official, per day</h2>
+    <p class="hint">
+      A hard cap for this first automated pass. The assignor can still override individual
+      assignments by hand afterward — this only bounds what the auto-scheduler will do on its own.
+    </p>
+    <div class="num-row">
+      <input type="number" id="maxGames" value="5" min="1" max="15">
+      <span class="note">games per official per day</span>
+    </div>
+  </section>
+
+  <!-- STEP 8: SUMMARY / GENERATE -->
+  <section class="card" id="card-summary">
+    <h2><span class="step-num">8</span> Review &amp; generate</h2>
+    <div class="summary-box" id="summaryBox">
+      <p class="hint" style="margin:0">Complete steps 1–7 to see a configuration summary here.</p>
+    </div>
+    <button class="primary" id="generateBtn" disabled>Generate assignments</button>
+    <div class="stub-note" id="stubNote" style="display:none">
+      This front end doesn't yet call the assignment engine directly — there's no API behind it. The
+      button above shows exactly the config object <code>runTournament()</code> would receive; wiring
+      this to the real engine is the next build step. Known schedule conflicts for individual
+      officials (an injury, a 3pm conflict) aren't collected here on purpose — that's a per-official,
+      ongoing thing better handled against a real draft schedule than as a blocking question before
+      one exists. See the README for the reasoning.
+    </div>
+    <pre class="json-out" id="jsonOut" style="display:none"></pre>
+  </section>
+
+</main>
+
+<script>
+/* ==========================================================================
+ * SPORT PROFILES — mirrored from packages/engine/sports/*.js
+ *
+ * Deliberate, commented duplication — trimmed to what the wizard needs.
+ * KEEP IN SYNC with the engine's sport files. Replacing this block with a
+ * real GET /sports call is the first thing the API should do.
+ *
+ * GRADE SCALE: 1 (strongest) – 4 (or 3, for sports with a shorter ladder),
+ * plus N (new / in training). Numeric, not lettered, so a grade never reads
+ * as a pool/division letter (field hockey pools run A–P).
+ * ========================================================================== */
+const SPORTS = {
+  'field-hockey': {
+    name: 'Field Hockey',
+    desc: 'Grades 1–4, N (new) tier trains on 7v7',
+    grades: [1, 2, 3, 4, 'N'],
+    defaultBackToBack: 'discouraged',
+    crewTemplates: {
+      full_field:   { label: 'Full field (11v11) — 2 umpires', dev: false, matchPattern: /11V11|U16|U19/i },
+      small_sided:  { label: 'Small-sided (7v7) — 2 umpires', dev: true, matchPattern: /7V7/i },
+      unofficiated: { label: 'No umpires (showcase / skills)', dev: false },
+    },
+    defaultCrewTemplate: 'full_field',
+    unofficiatedPattern: /SHOWCASE|SHOOTER|GK\s*SHOW/i,
+  },
+  basketball: {
+    name: 'Basketball',
+    desc: 'Grades 1–3, N (new) tier trains on youth games',
+    grades: [1, 2, 3, 'N'],
+    defaultBackToBack: 'discouraged',
+    crewTemplates: {
+      three_person:   { label: '3-person mechanics (varsity)', dev: false },
+      two_person:     { label: '2-person mechanics (JV)', dev: false },
+      two_person_dev: { label: '2-person, rookie development', dev: true },
+    },
+    defaultCrewTemplate: 'two_person',
+    unofficiatedPattern: /SCRIMMAGE|SHOOTAROUND/i,
+  },
+  soccer: {
+    name: 'Soccer',
+    desc: 'Grades 1–3, N (new) tier trains on 2-official rec games',
+    grades: [1, 2, 3, 'N'],
+    defaultBackToBack: 'discouraged',
+    crewTemplates: {
+      three_official:   { label: '3-official (center + 2 assistant referees)', dev: false, matchPattern: /VARSITY|COMPETITIVE|CLASSIC|PREMIER/i },
+      two_official:     { label: '2-official (dual system)', dev: false, matchPattern: /REC|U(?:8|9|10|11|12)\b/i },
+      two_official_dev: { label: '2-official, new-referee development', dev: true },
+    },
+    defaultCrewTemplate: 'two_official',
+    unofficiatedPattern: /SCRIMMAGE|SKILLS/i,
+  },
+  volleyball: {
+    name: 'Volleyball',
+    desc: 'Grades 1–3, N (new) tier trains on R1-only games',
+    grades: [1, 2, 3, 'N'],
+    defaultBackToBack: 'discouraged',
+    crewTemplates: {
+      full_crew:        { label: 'R1 + R2 + 2 line judges', dev: false, matchPattern: /VARSITY|COMPETITIVE|CLUB/i },
+      two_official:     { label: 'R1 + R2, no line judges', dev: false, matchPattern: /JV|REC/i },
+      one_official:     { label: 'R1 only', dev: false, matchPattern: /YOUTH|C[- ]?TEAM/i },
+      one_official_dev: { label: 'R1 only, new-official development', dev: true },
+    },
+    defaultCrewTemplate: 'two_official',
+    unofficiatedPattern: /SCRIMMAGE|OPEN\s*GYM/i,
+  },
+  softball: {
+    name: 'Softball',
+    desc: 'Grades 1–3, N (new) tier trains on 1-umpire slow pitch',
+    grades: [1, 2, 3, 'N'],
+    defaultBackToBack: 'allowed',
+    crewTemplates: {
+      fast_pitch_three:   { label: 'Fast pitch — 3 umpires (plate + 2 bases)', dev: false, matchPattern: /FAST\s*PITCH|VARSITY|TRAVEL/i },
+      fast_pitch_two:     { label: 'Fast pitch — 2 umpires (plate + base)', dev: false, matchPattern: /JV/i },
+      slow_pitch_two:     { label: 'Slow pitch — 2 umpires', dev: false, matchPattern: /SLOW\s*PITCH.*(COMPETITIVE|OPEN|CHURCH)/i },
+      slow_pitch_one:     { label: 'Slow pitch — 1 umpire', dev: false, matchPattern: /SLOW\s*PITCH|REC/i },
+      slow_pitch_one_dev: { label: 'Slow pitch — 1 umpire, development', dev: true },
+    },
+    defaultCrewTemplate: 'slow_pitch_one',
+    unofficiatedPattern: /SCRIMMAGE|BATTING\s*PRACTICE/i,
+  },
+};
+
+const B2B_COPY = {
+  forbidden:   'Treated as a hard rule, same tier as double-booking: an official who would need a back-to-back is simply not eligible for the second game. Games can come back short-staffed rather than violate this.',
+  discouraged: 'The engine avoids back-to-backs where possible. When the schedule genuinely can\'t be covered without one, it pairs a stronger official on the harder game for continuity and flags the pairing for review.',
+  allowed:     'No rest requirement beyond not double-booking (and beyond the facility layout rules in step 5, which always apply). Appropriate for positions or formats where consecutive games are normal. Also lets the shift planner ask for fewer officials, since it stops reserving a rest slot nobody needs.',
+};
+
+/* ---------------------------------------------------------------------- */
+
+let state = {
+  sport: null,
+  scheduleRows: null, scheduleFileName: null,
+  rosterRows: null, rosterFileName: null,
+  divisionTemplates: {},
+  fieldNames: [],
+  blockedFieldPairs: [],
+  backToBack: null,
+  maxConsecutive: 3,
+  maxGames: 5,
+};
+
+function sportProfile() { return SPORTS[state.sport]; }
+
+/* --- Step 1: sport dropdown --- */
+const sportSelect = document.getElementById('sportSelect');
+Object.entries(SPORTS).forEach(([key, s]) => {
+  const opt = document.createElement('option');
+  opt.value = key; opt.textContent = `${s.name} — ${s.desc}`;
+  sportSelect.appendChild(opt);
+});
+sportSelect.addEventListener('change', () => {
+  state.sport = sportSelect.value;
+  document.getElementById('card-sport').classList.add('done');
+
+  const sport = sportProfile();
+  const chips = document.getElementById('sportChips');
+  chips.innerHTML = '';
+  Object.values(sport.crewTemplates).forEach(t => {
+    const chip = document.createElement('span');
+    chip.className = 'chip' + (t.dev ? ' dev' : '');
+    chip.textContent = t.label;
+    chips.appendChild(chip);
+  });
+  document.getElementById('sportInfo').classList.add('show');
+
+  if (state.scheduleRows) proposeDivisions();
+  setB2BDefault();
+  refreshSummary();
+});
+
+/* --- File parsing --- */
+function parseWorkbook(file, cb) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const wb = XLSX.read(e.target.result, { type: 'array', cellDates: false });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+    cb(rows);
+  };
+  reader.readAsArrayBuffer(file);
+}
+function wireDropzone(dzId, inputId, onFile) {
+  const dz = document.getElementById(dzId);
+  const input = document.getElementById(inputId);
+  dz.addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { if (input.files[0]) onFile(input.files[0]); });
+  ['dragover', 'dragleave', 'drop'].forEach(evt => {
+    dz.addEventListener(evt, (e) => { e.preventDefault(); dz.classList.toggle('drag', evt === 'dragover'); });
+  });
+  dz.addEventListener('drop', (e) => { const f = e.dataTransfer.files[0]; if (f) onFile(f); });
+}
+
+/* --- Step 2: schedule --- */
+wireDropzone('dz-schedule', 'file-schedule', (file) => {
+  parseWorkbook(file, (rows) => {
+    state.scheduleRows = rows;
+    state.scheduleFileName = file.name;
+
+    const dates = new Set(), divisions = new Set(), fields = new Set();
+    rows.forEach(r => {
+      const dt = r['Game Date'] ?? r['Date'];
+      if (dt) dates.add(String(dt));
+      const div = r['Division'];
+      if (div) divisions.add(String(div).trim());
+      const loc = String(r['Location'] ?? '').trim();
+      const parts = loc.split(/\s+-\s+/);
+      const field = parts.length >= 2 ? parts.slice(1).join(' - ').trim() : loc;
+      if (field) fields.add(field);
+    });
+    state.fieldNames = [...fields].sort();
+
+    const summary = document.getElementById('summary-schedule');
+    summary.innerHTML = `<strong>${file.name}</strong> — ${rows.length} games, ` +
+      `${dates.size} day(s), ${divisions.size} division(s), ${fields.size} field(s)`;
+    summary.classList.add('show');
+    document.getElementById('card-schedule').classList.add('done');
+
+    if (state.sport) proposeDivisions();
+    renderFieldPairBuilder();
+    document.getElementById('card-facility').style.display = 'block';
+    refreshSummary();
+  });
+});
+
+/* --- Step 3: roster --- */
+wireDropzone('dz-roster', 'file-roster', (file) => {
+  parseWorkbook(file, (rows) => {
+    state.rosterRows = rows;
+    state.rosterFileName = file.name;
+
+    const keys = rows.length ? Object.keys(rows[0]) : [];
+    const gradeKey = keys.find(k => /grade|level|rank/i.test(k));
+    const byGrade = {};
+    if (gradeKey) {
+      rows.forEach(r => {
+        const g = String(r[gradeKey] ?? '').trim().toUpperCase();
+        if (g) byGrade[g] = (byGrade[g] || 0) + 1;
+      });
+    }
+    const summary = document.getElementById('summary-roster');
+    const gradeLine = gradeKey
+      ? Object.entries(byGrade).sort().map(([g, n]) => `${g}:${n}`).join('  ')
+      : '<em>no grade column detected — will need manual mapping</em>';
+    summary.innerHTML = `<strong>${file.name}</strong> — ${rows.length} officials<br>${gradeLine}`;
+    summary.classList.add('show');
+    document.getElementById('card-roster').classList.add('done');
+    refreshSummary();
+  });
+});
+
+/* --- Step 4: division -> crew template proposal --- */
+function proposeDivisions() {
+  const sport = sportProfile();
+  const seen = new Map();
+  state.scheduleRows.forEach(row => {
+    const d = String(row['Division'] ?? '').trim();
+    if (d) seen.set(d, (seen.get(d) || 0) + 1);
+  });
+
+  const proposals = [...seen.entries()].map(([division, games]) => {
+    if (sport.unofficiatedPattern && sport.unofficiatedPattern.test(division)) {
+      return { division, games, suggested: 'unofficiated' in sport.crewTemplates ? 'unofficiated' : sport.defaultCrewTemplate, confidence: 'high' };
+    }
+    for (const [key, t] of Object.entries(sport.crewTemplates)) {
+      if (t.matchPattern && t.matchPattern.test(division)) {
+        return { division, games, suggested: key, confidence: 'high' };
+      }
+    }
+    return { division, games, suggested: sport.defaultCrewTemplate, confidence: 'low' };
+  });
+
+  state.divisionTemplates = {};
+  proposals.forEach(p => { state.divisionTemplates[p.division] = p.suggested; });
+
+  const tbody = document.querySelector('#divisionTable tbody');
+  tbody.innerHTML = '';
+  proposals.forEach(p => {
+    const tr = document.createElement('tr');
+    const options = Object.entries(sport.crewTemplates)
+      .map(([key, t]) => `<option value="${key}" ${key === p.suggested ? 'selected' : ''}>${t.label}</option>`)
+      .join('');
+    tr.innerHTML = `
+      <td>${p.division}</td>
+      <td>${p.games}</td>
+      <td><select class="template-select" data-division="${p.division}">${options}</select></td>
+      <td><span class="confidence ${p.confidence}">${p.confidence === 'high' ? 'confirmed pattern' : 'please confirm'}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll('select.template-select').forEach(sel => {
+    sel.addEventListener('change', () => {
+      state.divisionTemplates[sel.dataset.division] = sel.value;
+      sel.closest('tr').querySelector('.confidence').outerHTML = '<span class="confidence high">confirmed by you</span>';
+      refreshSummary();
+    });
+  });
+
+  document.getElementById('card-divisions').style.display = 'block';
+  document.getElementById('card-divisions').classList.add('done');
+}
+
+/* --- Step 5: facility layout / blocked field pairs --- */
+function renderFieldPairBuilder() {
+  const el = document.getElementById('fieldPairBuilder');
+  if (!state.fieldNames.length) {
+    el.innerHTML = '<div class="no-fields-yet">Upload the schedule first to see field names here.</div>';
+    return;
+  }
+  const options = state.fieldNames.map(f => `<option value="${f}">${f}</option>`).join('');
+  el.innerHTML = `
+    <div class="pair-row">
+      <select class="field-select" id="pairA">${options}</select>
+      <span class="arrow">↔ too far for back-to-back ↔</span>
+      <select class="field-select" id="pairB">${options}</select>
+      <button class="add-pair" id="addPairBtn">Add</button>
+    </div>
+  `;
+  document.getElementById('addPairBtn').addEventListener('click', () => {
+    const a = document.getElementById('pairA').value;
+    const b = document.getElementById('pairB').value;
+    if (a === b) return;
+    const exists = state.blockedFieldPairs.some(([x, y]) => (x === a && y === b) || (x === b && y === a));
+    if (!exists) {
+      state.blockedFieldPairs.push([a, b]);
+      renderBlockedList();
+      document.getElementById('card-facility').classList.add('done');
+      refreshSummary();
+    }
+  });
+}
+function renderBlockedList() {
+  const el = document.getElementById('blockedList');
+  el.innerHTML = '';
+  state.blockedFieldPairs.forEach(([a, b], i) => {
+    const chip = document.createElement('div');
+    chip.className = 'blocked-chip';
+    chip.innerHTML = `<span>${a} ↔ ${b}</span>`;
+    const btn = document.createElement('button');
+    btn.className = 'remove-pair'; btn.textContent = 'Remove';
+    btn.addEventListener('click', () => {
+      state.blockedFieldPairs.splice(i, 1);
+      renderBlockedList();
+      refreshSummary();
+    });
+    chip.appendChild(btn);
+    el.appendChild(chip);
+  });
+}
+
+/* --- Step 6: back-to-back policy --- */
+document.querySelectorAll('#b2bSegment button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    state.backToBack = btn.dataset.val;
+    document.querySelectorAll('#b2bSegment button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('b2bDesc').textContent = B2B_COPY[btn.dataset.val];
+    document.getElementById('card-b2b').classList.add('done');
+    document.getElementById('consecutiveFollowup').classList.toggle('show', btn.dataset.val === 'allowed');
+    refreshSummary();
+  });
+});
+function setB2BDefault() {
+  const sport = sportProfile();
+  const rec = document.getElementById('b2bRecommend');
+  const label = sport.defaultBackToBack === 'discouraged' ? 'Avoid, allow if forced'
+    : sport.defaultBackToBack === 'forbidden' ? 'Not allowed' : 'Allowed';
+  rec.textContent = `Suggested default for ${sport.name}: "${label}" — click a button above to confirm or change it.`;
+}
+document.getElementById('maxConsecutive').addEventListener('input', (e) => {
+  state.maxConsecutive = parseInt(e.target.value, 10) || 3;
+  refreshSummary();
+});
+
+/* --- Step 7: max games --- */
+document.getElementById('maxGames').addEventListener('input', (e) => {
+  state.maxGames = parseInt(e.target.value, 10) || 5;
+  document.getElementById('card-maxgames').classList.add('done');
+  refreshSummary();
+});
+
+/* --- Step 8: summary + config preview --- */
+function refreshSummary() {
+  const box = document.getElementById('summaryBox');
+  const btn = document.getElementById('generateBtn');
+  const ready = state.sport && state.scheduleRows && state.rosterRows && state.backToBack;
+
+  if (!ready) {
+    box.innerHTML = '<p class="hint" style="margin:0">Complete steps 1–7 to see a configuration summary here.</p>';
+    btn.disabled = true;
+    document.getElementById('stubNote').style.display = 'none';
+    document.getElementById('jsonOut').style.display = 'none';
+    return;
+  }
+
+  const sport = sportProfile();
+  const divisionCount = Object.keys(state.divisionTemplates).length;
+  const unconfirmed = document.querySelectorAll('#divisionTable .confidence.low').length;
+
+  box.innerHTML = `
+    <div class="summary-grid">
+      <div class="stat"><div class="n">${sport.name}</div><div class="l">sport</div></div>
+      <div class="stat"><div class="n">${state.scheduleRows.length}</div><div class="l">games (${state.scheduleFileName})</div></div>
+      <div class="stat"><div class="n">${state.rosterRows.length}</div><div class="l">officials (${state.rosterFileName})</div></div>
+      <div class="stat"><div class="n">${divisionCount}</div><div class="l">divisions mapped</div></div>
+      <div class="stat"><div class="n">${state.blockedFieldPairs.length}</div><div class="l">blocked field pairs</div></div>
+      <div class="stat"><div class="n">${state.maxGames}</div><div class="l">max games/day</div></div>
+    </div>
+    ${unconfirmed > 0
+      ? `<div class="stub-note" style="display:block">${unconfirmed} division(s) still need confirmation in step 4 before this is trustworthy.</div>`
+      : ''}
+  `;
+
+  btn.disabled = false;
+  document.getElementById('stubNote').style.display = 'block';
+}
+
+document.getElementById('generateBtn').addEventListener('click', () => {
+  const config = {
+    sport: state.sport,
+    maxGamesPerUmpire: state.maxGames,
+    backToBack: state.backToBack,
+    ...(state.backToBack === 'allowed' ? { maxConsecutiveGames: state.maxConsecutive } : {}),
+    divisionTemplates: state.divisionTemplates,
+    blockedFieldPairs: state.blockedFieldPairs,
+  };
+  const out = document.getElementById('jsonOut');
+  out.textContent = JSON.stringify({
+    config,
+    rows: `[${state.scheduleRows.length} schedule rows — from ${state.scheduleFileName}]`,
+    umpires: `[${state.rosterRows.length} roster rows — from ${state.rosterFileName}, grade column still needs confirmed mapping]`,
+    _wouldCall: 'runTournament({ rows, umpires, config })',
+  }, null, 2);
+  out.style.display = 'block';
+});
+</script>
+</body>
+</html>
